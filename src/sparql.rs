@@ -1,12 +1,10 @@
 use serde::Deserialize;
 use snafu::prelude::*;
 
+use crate::graph::LinkAndNode;
+
 // sparql endpoint
 const ENDPOINT: &str = "https://ja.dbpedia.org/sparql";
-
-// sparql select example
-const QUERY: &str = "select * where { <http://ja.dbpedia.org/resource/宮崎駿> ?p ?o . } limit 5";
-// curl -X GET https://ja.dbpedia.org/sparql\?query\="select%20%2A%20where%20%7B%20%3Chttp%3A%2F%2Fja.dbpedia.org%2Fresource%2F%E5%AE%AE%E5%B4%8E%E9%A7%BF%3E%20%3Fp%20%3Fo%20.%20%7D%20limit%205"\&format\=json
 
 #[derive(Debug, Deserialize)]
 struct Value {
@@ -40,8 +38,26 @@ pub struct Response {
     results: Results,
 }
 
-pub async fn sparql_req() -> Result<Response, Error> {
-    let params = [("query", QUERY), ("format", "json"), ("timeout", "30000")];
+fn generate_query(search_word: &str) -> String {
+    let query = format!(
+        r#"
+        PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+        SELECT ?p ?o
+        WHERE {{
+            <http://ja.dbpedia.org/resource/{}> ?p ?o .
+        }}
+        "#,
+        search_word
+    );
+    query
+}
+
+pub async fn sparql_req(search_word: &str) -> Result<Response, Error> {
+    let params = [
+        ("query", generate_query(search_word)),
+        ("format", "json".to_string()),
+        ("timeout", "30000".to_string()),
+    ];
 
     let resp = reqwest::Client::new()
         .get(ENDPOINT)
@@ -54,6 +70,18 @@ pub async fn sparql_req() -> Result<Response, Error> {
         .context(JsonSnafu)?;
 
     Ok(resp)
+}
+
+pub fn parse_response(resp: Response) -> Vec<LinkAndNode> {
+    let mut link_nodes: Vec<LinkAndNode> = Vec::new();
+    for binding in resp.results.bindings {
+        link_nodes.push(LinkAndNode {
+            link: binding.p.value,
+            node: binding.o.value,
+        });
+    }
+
+    link_nodes
 }
 
 #[derive(Debug, Snafu)]

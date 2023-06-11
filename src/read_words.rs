@@ -6,7 +6,7 @@ struct SearchWord {
     word: String,
 }
 
-fn read_csv() -> Result<Vec<String>, Error> {
+pub fn read_csv() -> Result<Vec<String>, Error> {
     let mut words: Vec<String> = Vec::new();
 
     let mut rdr = csv::Reader::from_path("src/search_words.csv").context(CsvSnafu)?;
@@ -18,10 +18,9 @@ fn read_csv() -> Result<Vec<String>, Error> {
 }
 
 #[derive(Debug, Snafu)]
-enum Error {
+pub enum Error {
     #[snafu(display("csv error: {}", source))]
     Csv { source: csv::Error },
-
     #[snafu(display("csv error: {}", source))]
     ReadCsv { source: csv::Error },
 }
