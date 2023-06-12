@@ -2,12 +2,7 @@ mod graph;
 mod read_words;
 mod sparql;
 
-use std::collections::HashMap;
-
-use graph::{
-    filter_by_target_nodes, get_target_nodes, group_by_node_count, remove_duplicate_node,
-    remove_duplicates, save_as_n3, LinkAndNode,
-};
+use graph::{get_target_nodes, reduce_node_counts, Graph, NodeCount};
 use read_words::read_csv;
 use regex::RegexSet;
 use snafu::prelude::*;
@@ -17,26 +12,18 @@ use sparql::{parse_response, sparql_req};
 async fn main() -> Result<(), Error> {
     let search_words = read_csv().context(ReadCsvSnafu)?;
 
-    let mut all_link_nodes: HashMap<String, Vec<LinkAndNode>> = HashMap::new();
-    let mut all_nodes: Vec<String> = Vec::new();
+    let mut all_graph: Vec<Graph> = Vec::new();
+    let mut node_counts_vec: Vec<Vec<NodeCount>> = Vec::new();
 
     for search_word in &search_words {
         let resp = sparql_req(&search_word).await.context(SparqlSnafu)?;
 
-        let link_nodes = remove_duplicates(parse_response(resp));
+        let graph = Graph::new(&search_word, parse_response(resp));
+        let node_counts = graph.group_by_node_count();
 
-        let nodes: Vec<String> = remove_duplicate_node(
-            link_nodes
-                .iter()
-                .map(|link_node| link_node.node.clone())
-                .collect(),
-        );
-
-        all_link_nodes.insert(search_word.clone(), link_nodes);
-        all_nodes.extend(nodes);
+        all_graph.push(graph);
+        node_counts_vec.push(node_counts);
     }
-
-    let node_count = group_by_node_count(all_nodes);
 
     let node_count_thres = &search_words.len();
     let include_node_name_pattern =
@@ -50,19 +37,25 @@ async fn main() -> Result<(), Error> {
         r"http://ja.dbpedia.org/resource/Template:+",
     ])
     .context(RegexSnafu)?;
+
+    let all_node_counts = reduce_node_counts(node_counts_vec);
     let target_nodes = get_target_nodes(
-        node_count,
+        all_node_counts,
         node_count_thres,
         include_node_name_pattern,
         remove_node_name_pattern,
     );
     println!("{:#?}", target_nodes);
 
-    let all_link_nodes_filtered = filter_by_target_nodes(all_link_nodes, target_nodes);
-    println!("{:#?}", all_link_nodes_filtered);
+    for graph in all_graph {
+        println!("graph_name: {}", graph.graph_name);
+        let graph_filtered = graph.filter_by_target_nodes(&target_nodes);
 
-    let file_name = "output.n3";
-    save_as_n3(all_link_nodes_filtered, file_name).context(GraphWriteSnafu)?;
+        let file_name = format!("{}.n3", graph.graph_name);
+        graph_filtered
+            .save_as_n3(&file_name)
+            .context(GraphWriteSnafu)?;
+    }
 
     Ok(())
 }
