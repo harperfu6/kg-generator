@@ -51,7 +51,7 @@ async fn main() -> Result<(), Error> {
         println!("graph_name: {}", graph.graph_name);
         let graph_filtered = graph.filter_by_target_nodes(&target_nodes);
 
-        let file_name = format!("{}.n3", graph.graph_name);
+        let file_name = format!("{}/{}.n3", "data", graph.graph_name);
         graph_filtered
             .save_as_n3(&file_name)
             .context(GraphWriteSnafu)?;

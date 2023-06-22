@@ -1,7 +1,8 @@
 use std::{
     collections::{HashMap, HashSet},
-    fs::File,
+    fs::{create_dir_all, File},
     io::Write,
+    path::Path,
 };
 
 use regex::RegexSet;
@@ -107,6 +108,13 @@ impl Graph {
     }
 
     pub fn save_as_n3(&self, file_name: &str) -> Result<(), GraphWriteError> {
+        // create directory if not exists
+        let path = Path::new(file_name);
+        let dir = path.parent().unwrap();
+        if !path.parent().unwrap().exists() {
+            create_dir_all(dir).context(IoSnafu)?;
+        }
+
         let mut file = File::create(file_name).context(IoSnafu)?;
         for link_node in self.link_nodes.iter() {
             let n3 = format!(
