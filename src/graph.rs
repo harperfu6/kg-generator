@@ -10,16 +10,17 @@ use snafu::prelude::*;
 
 pub struct Graph {
     pub graph_name: String,
-    pub link_nodes: Vec<LinkAndNode>,
+    pub triples: Vec<Triple>,
 }
 
 pub type Node = String;
 pub type Link = String;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub struct LinkAndNode {
-    pub node: Node,
-    pub link: Link,
+pub struct Triple {
+    pub subject: Node,
+    pub predicate: Link,
+    pub object: Node,
 }
 
 #[derive(Debug)]
@@ -29,46 +30,41 @@ pub struct NodeCount {
 }
 
 impl Graph {
-    pub fn new(graph_name: &str, link_nodes: Vec<LinkAndNode>) -> Self {
+    pub fn new(graph_name: &str, triples: Vec<Triple>) -> Self {
         Graph {
             graph_name: graph_name.to_string(),
-            link_nodes,
+            triples,
         }
     }
 
-    /// remove duplicate link and node
+    /// remove duplicate triple
     pub fn remove_duplicates(self) -> Self {
-        let mut link_nodes_set: HashSet<LinkAndNode> = HashSet::new();
-        for link_node in self.link_nodes {
-            link_nodes_set.insert(link_node);
+        let mut triples_set: HashSet<Triple> = HashSet::new();
+        for triple in self.triples {
+            triples_set.insert(triple);
         }
 
-        let mut link_nodes_vec: Vec<LinkAndNode> = Vec::new();
-        for link_node in link_nodes_set {
-            link_nodes_vec.push(link_node);
+        let mut triple_vec: Vec<Triple> = Vec::new();
+        for triple in triples_set {
+            triple_vec.push(triple);
         }
 
         Graph {
             graph_name: self.graph_name,
-            link_nodes: link_nodes_vec,
+            triples: triple_vec,
         }
     }
 
-    /// remove duplicate node
+    /// get unique nodes (including subject and object)
     pub fn get_unique_node(&self) -> Vec<Node> {
-        let nodes: Vec<Node> = self
-            .link_nodes
-            .iter()
-            .map(|link_node| link_node.node.clone())
-            .collect();
-
-        let mut node_set: HashSet<Node> = HashSet::new();
-        for node in nodes {
-            node_set.insert(node);
+        let mut nodes: HashSet<Node> = HashSet::new();
+        for triple in &self.triples {
+            nodes.insert(triple.subject.clone());
+            nodes.insert(triple.object.clone());
         }
 
         let mut node_vec: Vec<Node> = Vec::new();
-        for node in node_set {
+        for node in nodes {
             node_vec.push(node);
         }
 
@@ -95,16 +91,25 @@ impl Graph {
         node_count
     }
 
-    pub fn filter_by_target_nodes(&self, target_nodes: &Vec<Node>) -> Self {
-        self.link_nodes.iter().fold(
-            Graph::new(&self.graph_name, Vec::new()),
-            |mut graph, link_node| {
-                if target_nodes.contains(&link_node.node) {
-                    graph.link_nodes.push(link_node.clone());
-                }
-                graph
-            },
-        )
+    /// filter by target nodes
+    pub fn filter_by_target_nodes(
+        &self,
+        subject_target_nodes: Vec<Node>,
+        object_target_nodes: Vec<Node>,
+    ) -> Self {
+        let mut triples: Vec<Triple> = Vec::new();
+        for triple in &self.triples {
+            if subject_target_nodes.contains(&triple.subject)
+                && object_target_nodes.contains(&triple.object)
+            {
+                triples.push(triple.clone());
+            }
+        }
+
+        Graph {
+            graph_name: self.graph_name.clone(),
+            triples,
+        }
     }
 
     pub fn save_as_n3(&self, file_name: &str) -> Result<(), GraphWriteError> {
@@ -116,10 +121,10 @@ impl Graph {
         }
 
         let mut file = File::create(file_name).context(IoSnafu)?;
-        for link_node in self.link_nodes.iter() {
+        for triple in self.triples.iter() {
             let n3 = format!(
                 "<{}> <{}> <{}> .\n",
-                self.graph_name, link_node.link, link_node.node
+                triple.subject, triple.predicate, triple.object
             );
             file.write_all(n3.as_bytes()).context(IoSnafu)?;
         }
@@ -128,6 +133,7 @@ impl Graph {
     }
 }
 
+/// すべてのグラフに含まれるノードごとの出現数
 pub fn reduce_node_counts(node_counts_vec: Vec<Vec<NodeCount>>) -> Vec<NodeCount> {
     let mut node_count_map: HashMap<String, usize> = HashMap::new();
     for node_counts in node_counts_vec {
@@ -147,7 +153,12 @@ pub fn reduce_node_counts(node_counts_vec: Vec<Vec<NodeCount>>) -> Vec<NodeCount
     node_count
 }
 
-/// get target nodes by node count and remove node name pattern
+/// 抽出対象とするノードを取得する
+///
+/// * `node_counts` - すべてのグラフに含まれるノードごとの出現数
+/// * `node_count_thres` - 抽出対象とするノードの最低出現数
+/// * `include_node_name_pattern` - 抽出対象とするノード名のパターン
+/// * `remove_node_name_pattern` - 抽出対象から除外するノード名のパターン
 pub fn get_target_nodes(
     node_counts: Vec<NodeCount>,
     node_count_thres: &usize,
