@@ -1,50 +1,85 @@
 mod graph;
 mod sparql;
+mod utils;
 mod word_search;
 
-use graph::{get_target_nodes, reduce_node_counts, Graph, NodeCount};
+use graph::{Graph, NodeCount};
 use regex::RegexSet;
 use snafu::prelude::*;
 
+use utils::reduce_node_counts;
 use word_search::get_graphs_from_file;
 
-#[tokio::main]
-async fn main() -> Result<(), Error> {
-    let all_graph = get_graphs_from_file("data/search_words.csv")
+use crate::utils::get_node_over_count;
+
+/// 検索後のリストからグラフを取得しKnowledgeGraphとして保存する
+///
+/// * `file_path` - 検索語のリストが記載されたファイルのパス
+async fn get_kgs(file_path: &str) -> Result<(), Error> {
+    let graphs = get_graphs_from_file(file_path)
         .await
         .context(WordSearchSnafu)?;
 
-    // // ここから以下は知識グラフとして結合することを目的とした処理
-    // let node_count_thres = &search_words.len();
-    // let include_node_name_pattern =
-    //     RegexSet::new(&[r"http://ja.dbpedia.org/resource/+"]).context(RegexSnafu)?;
-    // let remove_node_name_pattern = RegexSet::new(&[
-    //     r"http://ja.dbpedia.org/resource/(\d{1})月(\d{1})日",
-    //     r"http://ja.dbpedia.org/resource/(\d{1})月(\d{2})日",
-    //     r"http://ja.dbpedia.org/resource/(\d{2})月(\d{1})日",
-    //     r"http://ja.dbpedia.org/resource/(\d{2})月(\d{2})日",
-    //     r"http://ja.dbpedia.org/resource/(\d{4})年",
-    //     r"http://ja.dbpedia.org/resource/Template:+",
-    // ])
-    // .context(RegexSnafu)?;
+    let include_node_name_pattern =
+        // resourceノードのみを抽出
+        RegexSet::new(&[r"http://ja.dbpedia.org/resource/+"]).context(RegexSnafu)?;
+    let remove_node_name_pattern = RegexSet::new(&[
+        // 日付ノードは除外
+        r"http://ja.dbpedia.org/resource/(\d{1})月(\d{1})日",
+        r"http://ja.dbpedia.org/resource/(\d{1})月(\d{2})日",
+        r"http://ja.dbpedia.org/resource/(\d{2})月(\d{1})日",
+        r"http://ja.dbpedia.org/resource/(\d{2})月(\d{2})日",
+        r"http://ja.dbpedia.org/resource/(\d{4})年",
+        // テンプレートノードは除外
+        r"http://ja.dbpedia.org/resource/Template:+",
+    ])
+    .context(RegexSnafu)?;
 
-    // let all_node_counts = reduce_node_counts(node_counts_vec);
-    // let target_nodes = get_target_nodes(
-    //     all_node_counts,
-    //     node_count_thres,
-    //     include_node_name_pattern,
-    //     remove_node_name_pattern,
-    // );
-    // println!("{:#?}", target_nodes);
+    let all_node_counts = reduce_node_counts(&graphs);
+    // 知識グラフとして構築するためには各グラフ間でエッジが張られる必要がある
+    // グラフ数と同じにすると、各グラフについてすべのノードがエッジを持つことになり厳しい条件なので
+    // 要検討
+    let node_count_thres = graphs.len();
+    let node_over_thres = get_node_over_count(&all_node_counts, node_count_thres);
 
-    for graph in all_graph {
+    let kgs = graphs
+        .into_iter()
+        .map(|g| g.filter_by_pattern_nodes(&include_node_name_pattern, &remove_node_name_pattern))
+        .map(|g| g.filter_by_target_nodes(&node_over_thres))
+        .collect::<Vec<Graph>>();
+
+    for kg in kgs {
+        println!("graph_name: {}", kg.graph_name);
+
+        let file_name = format!("{}/{}/{}/{}.n3", "output", "rdf", "kg", kg.graph_name);
+        kg.save_as_n3(&file_name).context(GraphWriteSnafu)?;
+    }
+
+    Ok(())
+}
+
+/// 検索語のリストからグラフを取得しそのまま保存する
+///
+/// * `file_path` - 検索語のリストが記載されたファイルのパス
+async fn get_graphs(file_path: &str) -> Result<(), Error> {
+    let graphs = get_graphs_from_file(file_path)
+        .await
+        .context(WordSearchSnafu)?;
+
+    for graph in graphs {
         println!("graph_name: {}", graph.graph_name);
-        // let graph_filtered = graph.filter_by_target_nodes(&target_nodes);
 
-        let file_name = format!("{}/{}/{}.n3", "output", "rdf", graph.graph_name);
-        // graph_filtered
+        let file_name = format!("{}/{}/{}/{}.n3", "output", "rdf", "raw", graph.graph_name);
         graph.save_as_n3(&file_name).context(GraphWriteSnafu)?;
     }
+
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Error> {
+    let search_word_file_path = "data/search_words.csv";
+    get_kgs(search_word_file_path).await?;
 
     Ok(())
 }

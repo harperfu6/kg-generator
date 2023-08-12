@@ -6,6 +6,9 @@ use crate::{
     sparql::{self, sparql_req, Response, Value},
 };
 
+// sparql endpoint
+const ENDPOINT: &str = "https://ja.dbpedia.org/sparql";
+
 #[derive(Debug, Deserialize)]
 struct SearchWord {
     word: String,
@@ -60,13 +63,13 @@ fn resp2triples(resp: Response<Binding>, search_word: &str) -> Vec<Triple> {
 
 pub async fn get_triples(search_word: &str) -> Result<Vec<Triple>, Error> {
     let swq = search_word_query(search_word);
-    let resp = sparql_req::<Binding>(swq).await.context(SparqlSnafu)?;
+    let resp = sparql_req::<Binding>(ENDPOINT, swq)
+        .await
+        .context(SparqlSnafu)?;
     Ok(resp2triples(resp, search_word))
 }
 
-pub async fn get_graphs_from_file(file_path: &str) -> Result<Vec<Graph>, Error> {
-    let search_words = read_search_word(file_path)?;
-
+pub async fn get_graphs_from_search_words(search_words: Vec<String>) -> Result<Vec<Graph>, Error> {
     let mut all_graph: Vec<Graph> = Vec::new();
 
     for search_word in search_words {
@@ -76,6 +79,11 @@ pub async fn get_graphs_from_file(file_path: &str) -> Result<Vec<Graph>, Error> 
     }
 
     Ok(all_graph)
+}
+
+pub async fn get_graphs_from_file(file_path: &str) -> Result<Vec<Graph>, Error> {
+    let search_words = read_search_word(file_path)?;
+    get_graphs_from_search_words(search_words).await
 }
 
 #[derive(Debug, Snafu)]
@@ -94,7 +102,7 @@ mod tests {
 
     #[test]
     fn test_read_csv() {
-        let file_path = "src/search_words.csv";
+        let file_path = "data/search_words.csv";
         let words = read_search_word(file_path).unwrap();
         assert_eq!(words.len(), 2);
         assert_eq!(words[0], "ローソン");

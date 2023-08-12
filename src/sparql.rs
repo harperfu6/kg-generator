@@ -1,9 +1,6 @@
 use serde::Deserialize;
 use snafu::prelude::*;
 
-// sparql endpoint
-const ENDPOINT: &str = "https://ja.dbpedia.org/sparql";
-
 #[derive(Debug, Deserialize)]
 pub struct Value {
     #[serde(rename = "type")]
@@ -30,7 +27,12 @@ pub struct Response<B> {
     pub results: Results<B>,
 }
 
-pub async fn sparql_req<B>(query: String) -> Result<Response<B>, Error>
+/// Send a SPARQL query to the endpoint.
+///
+/// # Arguments
+/// * `endpoint` - A SPARQL endpoint.
+/// * `query` - A SPARQL query.
+pub async fn sparql_req<B>(endpoint: &str, query: String) -> Result<Response<B>, Error>
 where
     B: for<'de> Deserialize<'de>,
 {
@@ -41,7 +43,7 @@ where
     ];
 
     let resp = reqwest::Client::new()
-        .get(ENDPOINT)
+        .get(endpoint)
         .query(&params)
         .send()
         .await
@@ -73,6 +75,7 @@ mod tests {
             p: Value,
             o: Value,
         }
+        let endpoint = "http://ja.dbpedia.org/sparql";
 
         let query = r#"
             PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
@@ -81,7 +84,9 @@ mod tests {
                 <http://ja.dbpedia.org/resource/日本> ?p ?o .
             }
         "#;
-        let resp = sparql_req::<Binding>(query.to_string()).await.unwrap();
+        let resp = sparql_req::<Binding>(endpoint, query.to_string())
+            .await
+            .unwrap();
         println!("{:?}", resp);
     }
 }
