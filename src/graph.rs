@@ -141,7 +141,7 @@ impl Graph {
         let mut file = File::create(file_name).context(IoSnafu)?;
         for triple in self.triples.iter() {
             let n3 = format!(
-                "<{}> <{}> <{}> .\n",
+                "<http://ja.dbpedia.org/resource/{}> <{}> <{}> .\n",
                 triple.subject, triple.predicate, triple.object
             );
             file.write_all(n3.as_bytes()).context(IoSnafu)?;
