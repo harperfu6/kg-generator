@@ -78,7 +78,7 @@ async fn get_graphs(file_path: &str) -> Result<(), Error> {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    let search_word_file_path = "data/search_words.csv";
+    let search_word_file_path = "input/search_words.csv";
     get_kgs(search_word_file_path).await?;
 
     Ok(())
