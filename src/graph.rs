@@ -8,6 +8,7 @@ use std::{
 use regex::RegexSet;
 use snafu::prelude::*;
 
+#[derive(Debug)]
 pub struct Graph {
     pub graph_name: String,
     pub triples: Vec<Triple>,
@@ -95,7 +96,7 @@ impl Graph {
     pub fn filter_by_target_nodes(&self, target_nodes: &Vec<Node>) -> Self {
         let mut triples: Vec<Triple> = Vec::new();
         for triple in &self.triples {
-            if target_nodes.contains(&triple.subject) || target_nodes.contains(&triple.object) {
+            if target_nodes.contains(&triple.subject) && target_nodes.contains(&triple.object) {
                 triples.push(triple.clone());
             }
         }
@@ -141,7 +142,7 @@ impl Graph {
         let mut file = File::create(file_name).context(IoSnafu)?;
         for triple in self.triples.iter() {
             let n3 = format!(
-                "<http://ja.dbpedia.org/resource/{}> <{}> <{}> .\n",
+                "<{}> <{}> <{}> .\n",
                 triple.subject, triple.predicate, triple.object
             );
             file.write_all(n3.as_bytes()).context(IoSnafu)?;
