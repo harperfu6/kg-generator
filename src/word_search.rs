@@ -2,7 +2,7 @@ use serde::Deserialize;
 use snafu::prelude::*;
 
 use crate::{
-    graph::{Graph, Triple},
+    graph::{Graph, Node, Triple},
     sparql::{self, sparql_req, Response, Value},
 };
 
@@ -63,7 +63,6 @@ fn query_1hop(
         "#,
         search_word, include_node_name_pattern_str, remove_node_name_pattern_str
     );
-    dbg!(&query);
     query
 }
 
@@ -161,6 +160,7 @@ pub async fn get_graphs_from_search_words(
         )
         .await?;
         let graph = Graph::new(&search_word, triples);
+
         all_graph.push(graph);
     }
 

@@ -56,7 +56,7 @@ impl Graph {
         }
     }
 
-    /// ノードの一覧を取得する
+    /// ノードのユニークリストを取得する
     pub fn get_unique_node(&self) -> Vec<Node> {
         let mut nodes: HashSet<Node> = HashSet::new();
         for triple in &self.triples {
@@ -72,9 +72,27 @@ impl Graph {
         node_vec
     }
 
+    pub fn get_node(&self) -> Vec<Node> {
+        let subject_node_vec: Vec<Node> = self
+            .triples
+            .iter()
+            .map(|triple| triple.subject.clone())
+            .collect();
+        let object_node_vec: Vec<Node> = self
+            .triples
+            .iter()
+            .map(|triple| triple.object.clone())
+            .collect();
+        subject_node_vec
+            .into_iter()
+            .chain(object_node_vec.into_iter())
+            .collect()
+    }
+
     /// ノードの出現回数を算出する
     pub fn group_by_node_count(&self) -> Vec<NodeCount> {
-        let nodes = Self::get_unique_node(&self);
+        // let nodes = Self::get_unique_node(&self);
+        let nodes = self.get_node();
 
         let mut node_count_map: HashMap<String, usize> = HashMap::new();
         for node in nodes {

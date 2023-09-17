@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::graph::{Graph, Node, NodeCount};
+use crate::graph::{Graph, Node, NodeCount, Triple};
 
 /// すべてのグラフに含まれるノードごとの出現数
 ///
@@ -42,4 +42,17 @@ pub fn get_node_over_count(node_counts: &Vec<NodeCount>, node_count_thres: usize
     }
 
     nodes
+}
+
+/// 複数のグラフを結合する
+///
+/// * `graphs` - グラフのリスト
+pub fn concat_graphs(graphs: &Vec<Graph>) -> Graph {
+    let triples = graphs
+        .into_iter()
+        .map(|graph| graph.triples.clone())
+        .flatten()
+        .collect::<Vec<Triple>>();
+
+    Graph::new("all", triples)
 }
