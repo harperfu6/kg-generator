@@ -17,23 +17,26 @@ use crate::utils::get_node_over_count;
 /// * `file_path` - 検索語のリストが記載されたファイルのパス
 async fn get_kgs(file_path: &str) -> Result<(), Error> {
     // let include_node_name_pattern_list: Vec<&str> = [r"http://ja.dbpedia.org/resource/+"].to_vec();
-    // let remove_node_name_pattern_list: Vec<&str> = [
-    //     // 日付ノードは除外
-    //     r"http://ja.dbpedia.org/resource/(\\d{1})月(\\d{1})日",
-    //     r"http://ja.dbpedia.org/resource/(\\d{1})月(\\d{2})日",
-    //     r"http://ja.dbpedia.org/resource/(\\d{2})月(\\d{1})日",
-    //     r"http://ja.dbpedia.org/resource/(\\d{2})月(\\d{2})日",
-    //     r"http://ja.dbpedia.org/resource/(\\d{4})年",
-    //     // テンプレートノードは除外
-    //     r"http://ja.dbpedia.org/resource/Template:+",
-    //     // 地名関連のノードは除外
-    // ]
-    // .to_vec();
+    let include_node_name_pattern_list: Vec<&str> =
+        [r"http://ja.dbpedia.org/resource/Category+"].to_vec();
+    let exclude_node_name_pattern_list: Vec<&str> = [
+        // 日付ノードは除外
+        r"http://ja.dbpedia.org/resource/(\\d{1})月(\\d{1})日",
+        r"http://ja.dbpedia.org/resource/(\\d{1})月(\\d{2})日",
+        r"http://ja.dbpedia.org/resource/(\\d{2})月(\\d{1})日",
+        r"http://ja.dbpedia.org/resource/(\\d{2})月(\\d{2})日",
+        r"http://ja.dbpedia.org/resource/(\\d{4})年",
+        // テンプレートノードは除外
+        r"http://ja.dbpedia.org/resource/Template:+",
+        // 地名関連のノードは除外
+        r"http://ja.dbpedia.org/resource/[^\\s]+[都道府県市区町村郡(地方)]",
+    ]
+    .to_vec();
 
     let graphs = get_graphs_from_file(
         file_path,
         &include_node_name_pattern_list,
-        &remove_node_name_pattern_list,
+        &exclude_node_name_pattern_list,
     )
     .await
     .context(WordSearchSnafu)?;

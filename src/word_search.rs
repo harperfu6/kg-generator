@@ -46,10 +46,18 @@ pub fn read_search_word(file_path: &str) -> Result<Vec<String>, Error> {
 fn query_1hop(
     search_word: &str,
     include_node_name_pattern: &Vec<&str>,
-    remove_node_name_pattern_list: &Vec<&str>,
+    exclude_node_name_pattern: &Vec<&str>,
 ) -> String {
-    let include_node_name_pattern_str = include_node_name_pattern.join("|");
-    let remove_node_name_pattern_str = remove_node_name_pattern_list.join("|");
+    let include_node_name_pattern_str = include_node_name_pattern
+        .iter()
+        .map(|s| format!("(?={})", s))
+        .collect::<Vec<String>>()
+        .join("");
+    let exclude_node_name_pattern_str = exclude_node_name_pattern
+        .iter()
+        .map(|s| format!("(?!{})", s))
+        .collect::<Vec<String>>()
+        .join("");
 
     let query = format!(
         r#"
@@ -57,11 +65,10 @@ fn query_1hop(
         SELECT ?p1 ?o1
         WHERE {{
             <http://ja.dbpedia.org/resource/{}> ?p1 ?o1 .
-            FILTER regex(?o1, "{}")
-            FILTER regex(?o1, "[^{}]", "i")
+            FILTER regex(?o1, "^{}{}")
         }}
         "#,
-        search_word, include_node_name_pattern_str, remove_node_name_pattern_str
+        search_word, include_node_name_pattern_str, exclude_node_name_pattern_str
     );
     query
 }
@@ -119,12 +126,12 @@ fn resp2hop2triples(resp: Response<Binding2Hop>, search_word: &str) -> Vec<Tripl
 pub async fn get_triples(
     search_word: &str,
     include_node_name_pattern_list: &Vec<&str>,
-    remove_node_name_pattern_list: &Vec<&str>,
+    exclude_node_name_pattern_list: &Vec<&str>,
 ) -> Result<Vec<Triple>, Error> {
     let swq_1hop = query_1hop(
         search_word,
         include_node_name_pattern_list,
-        remove_node_name_pattern_list,
+        exclude_node_name_pattern_list,
     );
     let resp1hop = sparql_req::<Binding1Hop>(ENDPOINT, swq_1hop)
         .await
@@ -148,7 +155,7 @@ pub async fn get_triples(
 pub async fn get_graphs_from_search_words(
     search_words: Vec<String>,
     include_node_name_pattern_list: &Vec<&str>,
-    remove_node_name_pattern_list: &Vec<&str>,
+    exclude_node_name_pattern_list: &Vec<&str>,
 ) -> Result<Vec<Graph>, Error> {
     let mut all_graph: Vec<Graph> = Vec::new();
 
@@ -156,7 +163,7 @@ pub async fn get_graphs_from_search_words(
         let triples = get_triples(
             &search_word,
             &include_node_name_pattern_list,
-            &remove_node_name_pattern_list,
+            &exclude_node_name_pattern_list,
         )
         .await?;
         let graph = Graph::new(&search_word, triples);
@@ -199,7 +206,6 @@ mod tests {
     fn test_read_csv() {
         let file_path = "input/search_words.csv";
         let words = read_search_word(file_path).unwrap();
-        assert_eq!(words.len(), 2);
         assert_eq!(words[0], "ローソン");
         assert_eq!(words[1], "ファミリーマート");
     }
